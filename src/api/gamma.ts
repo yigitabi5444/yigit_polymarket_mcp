@@ -116,7 +116,7 @@ export class GammaApi {
   async search(query: string): Promise<GammaSearchResult> {
     return this.client.gamma<GammaSearchResult>(
       "/public-search",
-      { query },
+      { q: query },
       CACHE_TTLS.search,
     );
   }

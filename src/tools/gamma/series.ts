@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GammaApi } from "../../api/gamma.js";
+import { jsonResponse, errorResponse } from "../../format.js";
 
 export function register(server: McpServer, gamma: GammaApi) {
   server.tool(
@@ -13,12 +14,9 @@ export function register(server: McpServer, gamma: GammaApi) {
     async (args) => {
       try {
         const data = await gamma.getSeries(args);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        return jsonResponse(data);
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
       }
     },
   );
@@ -32,12 +30,9 @@ export function register(server: McpServer, gamma: GammaApi) {
     async (args) => {
       try {
         const data = await gamma.getSeriesById(args.id);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        return jsonResponse(data);
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
       }
     },
   );

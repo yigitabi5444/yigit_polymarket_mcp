@@ -8,6 +8,7 @@ import type {
   ClobMarket,
   ClobTickSize,
   ClobTrade,
+  ClobPriceHistory,
 } from "../types/clob.js";
 import { CACHE_TTLS } from "../config.js";
 
@@ -69,6 +70,18 @@ export class ClobApi {
       undefined,
       CACHE_TTLS.samplingMarkets,
     );
+  }
+
+  async getPriceHistory(
+    tokenId: string,
+    interval: string = "max",
+    fidelity: number = 60,
+  ): Promise<ClobPriceHistory> {
+    return this.client.clob<ClobPriceHistory>("/prices-history", {
+      market: tokenId,
+      interval,
+      fidelity: String(fidelity),
+    });
   }
 
   async getTickSize(tokenId: string): Promise<ClobTickSize> {

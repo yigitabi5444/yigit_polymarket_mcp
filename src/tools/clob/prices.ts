@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ClobApi } from "../../api/clob.js";
+import { jsonResponse, errorResponse } from "../../format.js";
 
 export function register(server: McpServer, clob: ClobApi) {
   server.tool(
@@ -13,12 +14,9 @@ export function register(server: McpServer, clob: ClobApi) {
     async (args) => {
       try {
         const data = await clob.getPrice(args.token_id, args.side);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        return jsonResponse(data);
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
       }
     },
   );
@@ -32,12 +30,9 @@ export function register(server: McpServer, clob: ClobApi) {
     async (args) => {
       try {
         const data = await clob.getMidpoint(args.token_id);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        return jsonResponse(data);
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
       }
     },
   );
@@ -51,12 +46,35 @@ export function register(server: McpServer, clob: ClobApi) {
     async (args) => {
       try {
         const data = await clob.getLastTradePrice(args.token_id);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        return jsonResponse(data);
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
+      }
+    },
+  );
+
+  server.tool(
+    "get_price_history",
+    "Get historical price time series for a Polymarket token. Returns array of {t: unix_timestamp, p: price} points. Useful for charting price movements over time.",
+    {
+      token_id: z.string().describe("CLOB token ID (from market's clobTokenIds)"),
+      interval: z
+        .enum(["1d", "1w", "1m", "3m", "6m", "1y", "max"])
+        .default("max")
+        .describe("Time interval: 1d, 1w, 1m, 3m, 6m, 1y, or max"),
+      fidelity: z
+        .number()
+        .min(1)
+        .max(1440)
+        .default(60)
+        .describe("Resolution in minutes between data points (default: 60)"),
+    },
+    async (args) => {
+      try {
+        const data = await clob.getPriceHistory(args.token_id, args.interval, args.fidelity);
+        return jsonResponse(data);
+      } catch (error) {
+        return errorResponse(error);
       }
     },
   );

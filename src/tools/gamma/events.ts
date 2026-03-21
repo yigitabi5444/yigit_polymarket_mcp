@@ -1,59 +1,51 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GammaApi } from "../../api/gamma.js";
+import { slimEvent, jsonResponse, errorResponse } from "../../format.js";
 
 export function register(server: McpServer, gamma: GammaApi) {
   server.tool(
     "get_events",
-    "List and filter Polymarket prediction events. Supports pagination, sorting, and filtering by status/tag.",
+    "List and filter Polymarket prediction events. Defaults to active, non-closed events sorted by volume descending. Supports pagination, sorting, and filtering by status/tag.",
     {
       limit: z.number().min(1).max(100).default(20).describe("Number of results to return"),
       offset: z.number().min(0).default(0).describe("Pagination offset"),
       order: z
         .string()
-        .optional()
+        .default("volume")
         .describe("Sort field: volume, liquidity, startDate, endDate, createdAt"),
-      ascending: z.boolean().optional().describe("Sort ascending (default: false)"),
+      ascending: z.boolean().default(false).describe("Sort ascending (default: false)"),
       slug: z.string().optional().describe("Filter by event slug"),
       tag: z.string().optional().describe("Filter by tag label"),
-      closed: z.boolean().optional().describe("Filter by closed status"),
-      active: z.boolean().optional().describe("Filter by active status"),
+      closed: z.boolean().default(false).describe("Filter by closed status (default: false = open only)"),
+      active: z.boolean().default(true).describe("Filter by active status (default: true = active only)"),
     },
     async (args) => {
       try {
         const data = await gamma.getEvents(args);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        return jsonResponse(data.map((e) => slimEvent(e as unknown as Record<string, unknown>)));
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
       }
     },
   );
 
   server.tool(
     "get_event",
-    "Get a single Polymarket event by ID or slug. Returns full event details including nested markets.",
+    "Get a single Polymarket event by ID or slug. Returns event details with nested markets.",
     {
       id: z.string().optional().describe("Event ID"),
       slug: z.string().optional().describe("Event slug"),
     },
     async (args) => {
       if (!args.id && !args.slug) {
-        return {
-          content: [{ type: "text", text: "Error: Either id or slug is required" }],
-          isError: true,
-        };
+        return errorResponse(new Error("Either id or slug is required"));
       }
       try {
         const data = await gamma.getEvent(args);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        return jsonResponse(slimEvent(data as unknown as Record<string, unknown>));
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
       }
     },
   );

@@ -22,7 +22,7 @@
 
 Prediction markets are the best real-time signal for what the world thinks will happen next. This server puts that signal directly into your AI assistant's toolkit — no API keys, no auth tokens, no setup hassle.
 
-**22 tools** &bull; **5 resources** &bull; **4 prompts** &bull; **Zero config** &bull; **Zero dependencies beyond the MCP SDK**
+**23 tools** &bull; **5 resources** &bull; **4 prompts** &bull; **Zero config** &bull; **Zero dependencies beyond the MCP SDK**
 
 ---
 
@@ -99,6 +99,7 @@ Then point your MCP client at the built binary:
 | `get_price` | Current price for a token (buy/sell side) |
 | `get_midpoint` | Midpoint price (best bid + best ask / 2) |
 | `get_last_trade_price` | Last executed trade price |
+| `get_price_history` | Historical price time series (configurable interval + fidelity) |
 | `get_order_book` | Full bid/ask depth for a token |
 | `get_order_books` | Batch order books for multiple tokens |
 | `get_order_book_summary` | Best bid, best ask, and spread at a glance |
@@ -169,6 +170,14 @@ Then point your MCP client at the built binary:
 │  gamma-api · clob · data-api │
 └──────────────────────────────┘
 ```
+
+### Smart Defaults
+
+List endpoints (`get_markets`, `get_events`) default to **active=true, closed=false, order=volume descending** — you get the hottest live markets out of the box, not ancient resolved ones from 2020. Override any default explicitly when you need historical data.
+
+### Clean Responses
+
+Raw Polymarket API responses contain 50+ fields per market (including gems like `pagerDutyNotificationEnabled` and `mailchimpTag`). This server strips the noise and returns a curated subset. JSON-encoded strings like `outcomes` and `outcomePrices` are parsed into real arrays — `["Yes", "No"]` not `"[\"Yes\", \"No\"]"`.
 
 ### Production Hardening
 

@@ -86,6 +86,15 @@ export interface ClobTickSize {
   [key: string]: unknown;
 }
 
+export interface ClobPriceHistoryPoint {
+  t: number;
+  p: number;
+}
+
+export interface ClobPriceHistory {
+  history: ClobPriceHistoryPoint[];
+}
+
 export interface ClobTrade {
   id: string;
   taker_order_id: string;

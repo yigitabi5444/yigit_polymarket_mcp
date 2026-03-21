@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GammaApi } from "../../api/gamma.js";
+import { slimEvent, slimMarket, jsonResponse, errorResponse } from "../../format.js";
 
 export function register(server: McpServer, gamma: GammaApi) {
   server.tool(
@@ -11,13 +12,17 @@ export function register(server: McpServer, gamma: GammaApi) {
     },
     async (args) => {
       try {
-        const data = await gamma.search(args.query);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        const raw = await gamma.search(args.query);
+        const result: Record<string, unknown> = {};
+        if (Array.isArray(raw.events)) {
+          result.events = raw.events.map((e) => slimEvent(e as unknown as Record<string, unknown>));
+        }
+        if (Array.isArray(raw.markets)) {
+          result.markets = raw.markets.map((m) => slimMarket(m as unknown as Record<string, unknown>));
+        }
+        return jsonResponse(result);
       } catch (error) {
-        return {
-          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
-          isError: true,
-        };
+        return errorResponse(error);
       }
     },
   );
