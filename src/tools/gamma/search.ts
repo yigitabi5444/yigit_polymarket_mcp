@@ -3,8 +3,15 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GammaApi } from "../../api/gamma.js";
 import { slimEvent, slimMarket, jsonResponse, errorResponse } from "../../format.js";
 
-function filterActive(items: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
-  return items.filter((i) => i.active === true && i.closed !== true);
+/** Check if an event has at least one active, non-closed sub-market */
+function hasActiveMarkets(event: Record<string, unknown>): boolean {
+  const markets = event.markets as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(markets)) return event.closed !== true;
+  return markets.some((m) => m.active === true && m.closed !== true);
+}
+
+function isActive(item: Record<string, unknown>): boolean {
+  return item.closed !== true;
 }
 
 export function register(server: McpServer, gamma: GammaApi) {
@@ -28,12 +35,14 @@ export function register(server: McpServer, gamma: GammaApi) {
         let note: string | undefined;
 
         if (args.active_only) {
-          const activeEvents = filterActive(events);
-          const activeMarkets = filterActive(markets);
+          // For events: keep those that are open OR have active sub-markets
+          const activeEvents = events.filter((e) => isActive(e) || hasActiveMarkets(e));
+          const activeMarkets = markets.filter(isActive);
 
-          // If filtering removes everything, return unfiltered with a note
-          if (activeEvents.length === 0 && activeMarkets.length === 0 && (events.length > 0 || markets.length > 0)) {
-            note = "No active/open results found. Showing all results including closed/resolved markets.";
+          if (activeEvents.length === 0 && activeMarkets.length === 0) {
+            if (events.length > 0 || markets.length > 0) {
+              note = `No active/open results for "${args.query}". Showing ${events.length + markets.length} closed/resolved result(s). Try broader terms (e.g. "trade war" instead of "tariff").`;
+            }
           } else {
             events = activeEvents;
             markets = activeMarkets;
