@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GammaApi } from "../../api/gamma.js";
+import type { GammaSearchResult } from "../../types/gamma.js";
 import { slimEvent, slimMarket, jsonResponse, errorResponse } from "../../format.js";
 
 /** Check if an event has at least one active, non-closed sub-market */
@@ -14,6 +15,31 @@ function isActive(item: Record<string, unknown>): boolean {
   return item.closed !== true;
 }
 
+function extractActive(raw: GammaSearchResult) {
+  const events = (Array.isArray(raw.events) ? raw.events : []) as Array<Record<string, unknown>>;
+  const markets = (Array.isArray(raw.markets) ? raw.markets : []) as Array<Record<string, unknown>>;
+  const activeEvents = events.filter((e) => isActive(e) || hasActiveMarkets(e));
+  const activeMarkets = markets.filter(isActive);
+  return { events, markets, activeEvents, activeMarkets };
+}
+
+/**
+ * Generate shorter sub-queries from a multi-word query.
+ * "Federal Reserve interest rate" → ["Federal Reserve", "interest rate"]
+ * Skips queries that are already 1-2 words.
+ */
+function generateSubQueries(query: string): string[] {
+  const words = query.trim().split(/\s+/);
+  if (words.length <= 2) return [];
+
+  const subs: string[] = [];
+  // Try pairs of consecutive words
+  for (let i = 0; i < words.length - 1; i++) {
+    subs.push(`${words[i]} ${words[i + 1]}`);
+  }
+  return subs;
+}
+
 export function register(server: McpServer, gamma: GammaApi) {
   server.tool(
     "search",
@@ -25,27 +51,31 @@ export function register(server: McpServer, gamma: GammaApi) {
     async (args) => {
       try {
         const raw = await gamma.search(args.query);
-
-        // Normalize: always return both arrays for consistent schema
-        const rawEvents = (Array.isArray(raw.events) ? raw.events : []) as Array<Record<string, unknown>>;
-        const rawMarkets = (Array.isArray(raw.markets) ? raw.markets : []) as Array<Record<string, unknown>>;
-
-        let events = rawEvents;
-        let markets = rawMarkets;
+        let { events, markets, activeEvents, activeMarkets } = extractActive(raw);
         let note: string | undefined;
 
         if (args.active_only) {
-          // For events: keep those that are open OR have active sub-markets
-          const activeEvents = events.filter((e) => isActive(e) || hasActiveMarkets(e));
-          const activeMarkets = markets.filter(isActive);
-
-          if (activeEvents.length === 0 && activeMarkets.length === 0) {
-            if (events.length > 0 || markets.length > 0) {
-              note = `No active/open results for "${args.query}". Showing ${events.length + markets.length} closed/resolved result(s). Try broader terms (e.g. "trade war" instead of "tariff").`;
-            }
-          } else {
+          if (activeEvents.length > 0 || activeMarkets.length > 0) {
             events = activeEvents;
             markets = activeMarkets;
+          } else {
+            // No active results — try shorter sub-queries as fallback
+            const subQueries = generateSubQueries(args.query);
+            for (const sub of subQueries) {
+              const subRaw = await gamma.search(sub);
+              const subResult = extractActive(subRaw);
+              if (subResult.activeEvents.length > 0 || subResult.activeMarkets.length > 0) {
+                events = subResult.activeEvents;
+                markets = subResult.activeMarkets;
+                note = `No active results for "${args.query}". Showing results for "${sub}" instead.`;
+                break;
+              }
+            }
+
+            // Still nothing active — show closed results from original query
+            if (!note && (events.length > 0 || markets.length > 0)) {
+              note = `No active/open results for "${args.query}". Showing ${events.length + markets.length} closed/resolved result(s).`;
+            }
           }
         }
 
