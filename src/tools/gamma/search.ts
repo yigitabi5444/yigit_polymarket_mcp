@@ -9,16 +9,25 @@ export function register(server: McpServer, gamma: GammaApi) {
     "Full-text search across Polymarket events, markets, and profiles. Use this to find markets on any topic.",
     {
       query: z.string().min(1).describe("Search query (e.g. 'election', 'bitcoin', 'AI')"),
+      active_only: z.boolean().default(true).describe("Only return active/open markets and filter closed sub-markets from events (default: true)"),
     },
     async (args) => {
       try {
         const raw = await gamma.search(args.query);
         const result: Record<string, unknown> = {};
         if (Array.isArray(raw.events)) {
-          result.events = raw.events.map((e) => slimEvent(e as unknown as Record<string, unknown>));
+          let events = raw.events as Array<Record<string, unknown>>;
+          if (args.active_only) {
+            events = events.filter((e) => e.active === true && e.closed !== true);
+          }
+          result.events = events.map((e) => slimEvent(e, { activeOnly: args.active_only }));
         }
         if (Array.isArray(raw.markets)) {
-          result.markets = raw.markets.map((m) => slimMarket(m as unknown as Record<string, unknown>));
+          let markets = raw.markets as Array<Record<string, unknown>>;
+          if (args.active_only) {
+            markets = markets.filter((m) => m.active === true && m.closed !== true);
+          }
+          result.markets = markets.map((m) => slimMarket(m));
         }
         return jsonResponse(result);
       } catch (error) {

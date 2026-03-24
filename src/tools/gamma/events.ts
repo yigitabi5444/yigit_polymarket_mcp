@@ -23,7 +23,7 @@ export function register(server: McpServer, gamma: GammaApi) {
     async (args) => {
       try {
         const data = await gamma.getEvents(args);
-        return jsonResponse(data.map((e) => slimEvent(e as unknown as Record<string, unknown>)));
+        return jsonResponse(data.map((e) => slimEvent(e as unknown as Record<string, unknown>, { activeOnly: args.active })));
       } catch (error) {
         return errorResponse(error);
       }
@@ -36,6 +36,7 @@ export function register(server: McpServer, gamma: GammaApi) {
     {
       id: z.string().optional().describe("Event ID"),
       slug: z.string().optional().describe("Event slug"),
+      active_markets_only: z.boolean().default(true).describe("Only include active/open sub-markets (default: true)"),
     },
     async (args) => {
       if (!args.id && !args.slug) {
@@ -43,7 +44,7 @@ export function register(server: McpServer, gamma: GammaApi) {
       }
       try {
         const data = await gamma.getEvent(args);
-        return jsonResponse(slimEvent(data as unknown as Record<string, unknown>));
+        return jsonResponse(slimEvent(data as unknown as Record<string, unknown>, { activeOnly: args.active_markets_only }));
       } catch (error) {
         return errorResponse(error);
       }

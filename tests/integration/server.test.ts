@@ -61,7 +61,9 @@ describe("Polymarket MCP Server Integration", () => {
     expect(toolNames).toContain("get_market_trades");
     expect(toolNames).toContain("get_market_holders");
 
-    expect(tools.length).toBe(23);
+    expect(toolNames).toContain("get_market_summary");
+
+    expect(tools.length).toBe(24);
   });
 
   it("lists prompts", async () => {

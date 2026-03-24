@@ -138,11 +138,20 @@ export function slimMarket(raw: Record<string, unknown>): SlimMarket {
   return base;
 }
 
-export function slimEvent(raw: Record<string, unknown>): SlimEvent {
+export function slimEvent(
+  raw: Record<string, unknown>,
+  options?: { activeOnly?: boolean },
+): SlimEvent {
   const base = pick(raw, EVENT_FIELDS) as unknown as SlimEvent;
 
   if (Array.isArray(raw.markets)) {
-    base.markets = (raw.markets as Array<Record<string, unknown>>).map(slimMarket);
+    let markets = raw.markets as Array<Record<string, unknown>>;
+    if (options?.activeOnly) {
+      markets = markets.filter(
+        (m) => m.active === true && m.closed !== true,
+      );
+    }
+    base.markets = markets.map(slimMarket);
   }
 
   if (Array.isArray(raw.tags)) {

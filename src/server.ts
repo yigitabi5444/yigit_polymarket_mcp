@@ -14,6 +14,7 @@ import { register as registerClobPrices } from "./tools/clob/prices.js";
 import { register as registerClobOrderbook } from "./tools/clob/orderbook.js";
 import { register as registerClobMarkets } from "./tools/clob/markets.js";
 import { register as registerClobTickSize } from "./tools/clob/tick-size.js";
+import { register as registerClobSummary } from "./tools/clob/summary.js";
 import { register as registerDataTrades } from "./tools/data/trades.js";
 import { register as registerDataHolders } from "./tools/data/holders.js";
 import { registerResources } from "./resources/index.js";
@@ -43,6 +44,7 @@ export function createServer(): McpServer {
   registerClobOrderbook(server, clob);
   registerClobMarkets(server, clob);
   registerClobTickSize(server, clob);
+  registerClobSummary(server, clob, gamma);
 
   // Data tools
   registerDataTrades(server, dataApi);

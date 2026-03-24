@@ -72,7 +72,26 @@ export function register(server: McpServer, clob: ClobApi) {
     async (args) => {
       try {
         const data = await clob.getPriceHistory(args.token_id, args.interval, args.fidelity);
-        return jsonResponse(data);
+        const points = data?.history ?? [];
+
+        // Compute summary stats so callers don't have to parse 400+ points
+        const prices = points.map((p) => p.p);
+        const summary = prices.length > 0
+          ? {
+              count: prices.length,
+              high: Math.max(...prices),
+              low: Math.min(...prices),
+              first: prices[0],
+              last: prices[prices.length - 1],
+              change: Math.round((prices[prices.length - 1] - prices[0]) * 10000) / 10000,
+              change_pct:
+                prices[0] !== 0
+                  ? Math.round(((prices[prices.length - 1] - prices[0]) / prices[0]) * 10000) / 100
+                  : 0,
+            }
+          : null;
+
+        return jsonResponse({ summary, history: points });
       } catch (error) {
         return errorResponse(error);
       }
