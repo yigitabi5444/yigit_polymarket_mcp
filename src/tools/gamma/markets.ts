@@ -31,6 +31,7 @@ export function register(server: McpServer, gamma: GammaApi) {
     async (args) => {
       try {
         const data = await gamma.getMarkets(args);
+        // Compact mode for lists — no description, no tags
         return jsonResponse(data.map((m) => slimMarket(m as unknown as Record<string, unknown>)));
       } catch (error) {
         return errorResponse(error);
@@ -40,7 +41,7 @@ export function register(server: McpServer, gamma: GammaApi) {
 
   server.tool(
     "get_market",
-    "Get a single Polymarket market by ID, slug, or condition ID. Returns clean market details with parsed outcomes and prices.",
+    "Get a single Polymarket market by ID, slug, or condition ID. Returns full market details with description, parsed outcomes and prices.",
     {
       id: z.string().optional().describe("Market ID"),
       slug: z.string().optional().describe("Market slug"),
@@ -51,7 +52,8 @@ export function register(server: McpServer, gamma: GammaApi) {
       }
       try {
         const data = await gamma.getMarket(args);
-        return jsonResponse(slimMarket(data as unknown as Record<string, unknown>));
+        // Full mode for single item — includes description and tags
+        return jsonResponse(slimMarket(data as unknown as Record<string, unknown>, { full: true }));
       } catch (error) {
         return errorResponse(error);
       }

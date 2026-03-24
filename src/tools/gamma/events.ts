@@ -16,14 +16,18 @@ export function register(server: McpServer, gamma: GammaApi) {
         .describe("Sort field: volume, liquidity, startDate, endDate, createdAt"),
       ascending: z.boolean().default(false).describe("Sort ascending (default: false)"),
       slug: z.string().optional().describe("Filter by event slug"),
-      tag: z.string().optional().describe("Filter by tag label"),
+      tag: z.string().optional().describe("Filter by tag label (e.g. 'politics', 'crypto', 'sports')"),
       closed: z.boolean().default(false).describe("Filter by closed status (default: false = open only)"),
       active: z.boolean().default(true).describe("Filter by active status (default: true = active only)"),
     },
     async (args) => {
       try {
         const data = await gamma.getEvents(args);
-        return jsonResponse(data.map((e) => slimEvent(e as unknown as Record<string, unknown>, { activeOnly: args.active })));
+        return jsonResponse(
+          data.map((e) =>
+            slimEvent(e as unknown as Record<string, unknown>, { activeOnly: args.active }),
+          ),
+        );
       } catch (error) {
         return errorResponse(error);
       }
@@ -32,7 +36,7 @@ export function register(server: McpServer, gamma: GammaApi) {
 
   server.tool(
     "get_event",
-    "Get a single Polymarket event by ID or slug. Returns event details with nested markets.",
+    "Get a single Polymarket event by ID or slug. Returns full event details with description and nested markets.",
     {
       id: z.string().optional().describe("Event ID"),
       slug: z.string().optional().describe("Event slug"),
@@ -44,7 +48,12 @@ export function register(server: McpServer, gamma: GammaApi) {
       }
       try {
         const data = await gamma.getEvent(args);
-        return jsonResponse(slimEvent(data as unknown as Record<string, unknown>, { activeOnly: args.active_markets_only }));
+        return jsonResponse(
+          slimEvent(data as unknown as Record<string, unknown>, {
+            activeOnly: args.active_markets_only,
+            full: true,
+          }),
+        );
       } catch (error) {
         return errorResponse(error);
       }

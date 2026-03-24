@@ -15,20 +15,45 @@ export function register(server: McpServer, gamma: GammaApi) {
       try {
         const raw = await gamma.search(args.query);
         const result: Record<string, unknown> = {};
+        let hasResults = false;
+
         if (Array.isArray(raw.events)) {
           let events = raw.events as Array<Record<string, unknown>>;
           if (args.active_only) {
             events = events.filter((e) => e.active === true && e.closed !== true);
           }
-          result.events = events.map((e) => slimEvent(e, { activeOnly: args.active_only }));
+          if (events.length > 0) {
+            result.events = events.map((e) => slimEvent(e, { activeOnly: args.active_only }));
+            hasResults = true;
+          }
         }
         if (Array.isArray(raw.markets)) {
           let markets = raw.markets as Array<Record<string, unknown>>;
           if (args.active_only) {
             markets = markets.filter((m) => m.active === true && m.closed !== true);
           }
-          result.markets = markets.map((m) => slimMarket(m));
+          if (markets.length > 0) {
+            result.markets = markets.map((m) => slimMarket(m));
+            hasResults = true;
+          }
         }
+
+        // Fallback: if public-search returned nothing useful, try the markets
+        // endpoint with a text query filter. Gamma supports `_q` for text search.
+        if (!hasResults) {
+          const fallbackParams: Record<string, unknown> = {
+            active: args.active_only ? true : undefined,
+            closed: args.active_only ? false : undefined,
+            order: "volume",
+            ascending: false,
+            limit: 20,
+          };
+          const markets = await gamma.searchMarkets(args.query, fallbackParams);
+          if (Array.isArray(markets) && markets.length > 0) {
+            result.markets = (markets as Array<Record<string, unknown>>).map((m) => slimMarket(m));
+          }
+        }
+
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

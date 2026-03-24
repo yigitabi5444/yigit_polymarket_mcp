@@ -121,6 +121,29 @@ export class GammaApi {
     );
   }
 
+  /**
+   * Fallback text search via the /markets endpoint using Gamma's `_q` param.
+   * Used when /public-search returns empty for valid queries.
+   */
+  async searchMarkets(
+    query: string,
+    params?: {
+      active?: boolean;
+      closed?: boolean;
+      order?: string;
+      ascending?: boolean;
+      limit?: number;
+    },
+  ): Promise<GammaMarket[]> {
+    const q: Record<string, string | undefined> = { _q: query };
+    if (params?.active !== undefined) q.active = String(params.active);
+    if (params?.closed !== undefined) q.closed = String(params.closed);
+    if (params?.order) q.order = params.order;
+    if (params?.ascending !== undefined) q.ascending = String(params.ascending);
+    if (params?.limit !== undefined) q.limit = String(params.limit);
+    return this.client.gamma<GammaMarket[]>("/markets", q, CACHE_TTLS.search);
+  }
+
   async getTags(): Promise<GammaTag[]> {
     return this.client.gamma<GammaTag[]>("/tags", undefined, CACHE_TTLS.tags);
   }

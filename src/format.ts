@@ -5,17 +5,20 @@
  * an LLM context window (mailchimpTag, pagerDutyNotificationEnabled, …).
  * These helpers strip the noise, parse embedded JSON strings, and return
  * a clean, predictable shape.
+ *
+ * Two modes:
+ *  - **compact** (default for lists): no description, no tags — just the data
+ *  - **full** (single-item fetches): includes description and tags
  */
 
 // ── Market (Gamma) ──────────────────────────────────────────────────────────
 
-const MARKET_FIELDS = [
+const MARKET_FIELDS_COMPACT = [
   "id",
   "question",
   "conditionId",
   "slug",
   "endDate",
-  "startDate",
   "liquidity",
   "volume",
   "volume24hr",
@@ -25,11 +28,16 @@ const MARKET_FIELDS = [
   "bestAsk",
   "lastTradePrice",
   "spread",
-  "description",
   "groupItemTitle",
+  "negRisk",
+] as const;
+
+const MARKET_FIELDS_FULL = [
+  ...MARKET_FIELDS_COMPACT,
+  "startDate",
+  "description",
   "enableOrderBook",
   "acceptingOrders",
-  "negRisk",
 ] as const;
 
 export interface SlimMarket {
@@ -38,7 +46,7 @@ export interface SlimMarket {
   conditionId: string;
   slug: string;
   endDate: string;
-  startDate: string;
+  startDate?: string;
   liquidity: string;
   volume: string;
   volume24hr: string;
@@ -48,7 +56,7 @@ export interface SlimMarket {
   bestAsk: string;
   lastTradePrice: string;
   spread: string;
-  description: string;
+  description?: string;
   groupItemTitle?: string;
   enableOrderBook?: boolean;
   acceptingOrders?: boolean;
@@ -61,19 +69,23 @@ export interface SlimMarket {
 
 // ── Event (Gamma) ───────────────────────────────────────────────────────────
 
-const EVENT_FIELDS = [
+const EVENT_FIELDS_COMPACT = [
   "id",
   "ticker",
   "slug",
   "title",
-  "description",
-  "startDate",
   "endDate",
   "active",
   "closed",
-  "archived",
   "liquidity",
   "volume",
+] as const;
+
+const EVENT_FIELDS_FULL = [
+  ...EVENT_FIELDS_COMPACT,
+  "description",
+  "startDate",
+  "archived",
 ] as const;
 
 export interface SlimEvent {
@@ -81,16 +93,25 @@ export interface SlimEvent {
   ticker: string;
   slug: string;
   title: string;
-  description: string;
-  startDate: string;
+  description?: string;
+  startDate?: string;
   endDate: string;
   active: boolean;
   closed: boolean;
-  archived: boolean;
+  archived?: boolean;
   liquidity: string;
   volume: string;
   markets?: SlimMarket[];
   tags?: Array<{ label: string; slug: string }>;
+}
+
+// ── Options ─────────────────────────────────────────────────────────────────
+
+export interface FormatOptions {
+  /** Filter to only active/open sub-markets within events */
+  activeOnly?: boolean;
+  /** If true, include description and extra fields. Default false (compact). */
+  full?: boolean;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -119,16 +140,20 @@ function pick<T extends Record<string, unknown>>(
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
-export function slimMarket(raw: Record<string, unknown>): SlimMarket {
-  const base = pick(raw, MARKET_FIELDS) as unknown as SlimMarket;
+export function slimMarket(
+  raw: Record<string, unknown>,
+  options?: FormatOptions,
+): SlimMarket {
+  const fields = options?.full ? MARKET_FIELDS_FULL : MARKET_FIELDS_COMPACT;
+  const base = pick(raw, fields) as unknown as SlimMarket;
 
   // Parse JSON-encoded strings into real arrays
   base.outcomes = tryParseJson(raw.outcomes) as string[] ?? [];
   base.outcomePrices = ((tryParseJson(raw.outcomePrices) as string[]) ?? []).map(Number);
   base.clobTokenIds = tryParseJson(raw.clobTokenIds) as string[] ?? [];
 
-  // Slim tags
-  if (Array.isArray(raw.tags)) {
+  // Only include tags in full mode
+  if (options?.full && Array.isArray(raw.tags)) {
     base.tags = (raw.tags as Array<Record<string, unknown>>).map((t) => ({
       label: String(t.label ?? ""),
       slug: String(t.slug ?? ""),
@@ -140,9 +165,10 @@ export function slimMarket(raw: Record<string, unknown>): SlimMarket {
 
 export function slimEvent(
   raw: Record<string, unknown>,
-  options?: { activeOnly?: boolean },
+  options?: FormatOptions,
 ): SlimEvent {
-  const base = pick(raw, EVENT_FIELDS) as unknown as SlimEvent;
+  const fields = options?.full ? EVENT_FIELDS_FULL : EVENT_FIELDS_COMPACT;
+  const base = pick(raw, fields) as unknown as SlimEvent;
 
   if (Array.isArray(raw.markets)) {
     let markets = raw.markets as Array<Record<string, unknown>>;
@@ -151,10 +177,11 @@ export function slimEvent(
         (m) => m.active === true && m.closed !== true,
       );
     }
-    base.markets = markets.map(slimMarket);
+    base.markets = markets.map((m) => slimMarket(m, options));
   }
 
-  if (Array.isArray(raw.tags)) {
+  // Only include tags in full mode
+  if (options?.full && Array.isArray(raw.tags)) {
     base.tags = (raw.tags as Array<Record<string, unknown>>).map((t) => ({
       label: String(t.label ?? ""),
       slug: String(t.slug ?? ""),
