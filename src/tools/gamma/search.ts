@@ -3,6 +3,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GammaApi } from "../../api/gamma.js";
 import { slimEvent, slimMarket, jsonResponse, errorResponse } from "../../format.js";
 
+function filterActive(items: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return items.filter((i) => i.active === true && i.closed !== true);
+}
+
 export function register(server: McpServer, gamma: GammaApi) {
   server.tool(
     "search",
@@ -14,45 +18,34 @@ export function register(server: McpServer, gamma: GammaApi) {
     async (args) => {
       try {
         const raw = await gamma.search(args.query);
-        const result: Record<string, unknown> = {};
-        let hasResults = false;
 
-        if (Array.isArray(raw.events)) {
-          let events = raw.events as Array<Record<string, unknown>>;
-          if (args.active_only) {
-            events = events.filter((e) => e.active === true && e.closed !== true);
-          }
-          if (events.length > 0) {
-            result.events = events.map((e) => slimEvent(e, { activeOnly: args.active_only }));
-            hasResults = true;
-          }
-        }
-        if (Array.isArray(raw.markets)) {
-          let markets = raw.markets as Array<Record<string, unknown>>;
-          if (args.active_only) {
-            markets = markets.filter((m) => m.active === true && m.closed !== true);
-          }
-          if (markets.length > 0) {
-            result.markets = markets.map((m) => slimMarket(m));
-            hasResults = true;
+        // Normalize: always return both arrays for consistent schema
+        const rawEvents = (Array.isArray(raw.events) ? raw.events : []) as Array<Record<string, unknown>>;
+        const rawMarkets = (Array.isArray(raw.markets) ? raw.markets : []) as Array<Record<string, unknown>>;
+
+        let events = rawEvents;
+        let markets = rawMarkets;
+        let note: string | undefined;
+
+        if (args.active_only) {
+          const activeEvents = filterActive(events);
+          const activeMarkets = filterActive(markets);
+
+          // If filtering removes everything, return unfiltered with a note
+          if (activeEvents.length === 0 && activeMarkets.length === 0 && (events.length > 0 || markets.length > 0)) {
+            note = "No active/open results found. Showing all results including closed/resolved markets.";
+          } else {
+            events = activeEvents;
+            markets = activeMarkets;
           }
         }
 
-        // Fallback: if public-search returned nothing useful, try the markets
-        // endpoint with a text query filter. Gamma supports `_q` for text search.
-        if (!hasResults) {
-          const fallbackParams: Record<string, unknown> = {
-            active: args.active_only ? true : undefined,
-            closed: args.active_only ? false : undefined,
-            order: "volume",
-            ascending: false,
-            limit: 20,
-          };
-          const markets = await gamma.searchMarkets(args.query, fallbackParams);
-          if (Array.isArray(markets) && markets.length > 0) {
-            result.markets = (markets as Array<Record<string, unknown>>).map((m) => slimMarket(m));
-          }
-        }
+        const result: Record<string, unknown> = {
+          events: events.map((e) => slimEvent(e, { activeOnly: args.active_only })),
+          markets: markets.map((m) => slimMarket(m)),
+        };
+
+        if (note) result.note = note;
 
         return jsonResponse(result);
       } catch (error) {
