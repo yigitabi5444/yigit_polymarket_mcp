@@ -79,9 +79,13 @@ export function register(server: McpServer, gamma: GammaApi) {
           }
         }
 
+        // If we're showing closed fallback results, don't filter their sub-markets
+        const showingClosed = note?.includes("closed/resolved");
+        const formatOpts = { activeOnly: args.active_only && !showingClosed };
+
         const result: Record<string, unknown> = {
-          events: events.map((e) => slimEvent(e, { activeOnly: args.active_only })),
-          markets: markets.map((m) => slimMarket(m)),
+          events: events.map((e) => slimEvent(e, formatOpts)),
+          markets: markets.map((m) => slimMarket(m, formatOpts)),
         };
 
         if (note) result.note = note;
